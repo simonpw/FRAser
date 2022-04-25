@@ -50,14 +50,12 @@ def rolling_average(input_array, output_array, smoothing_factor):
         output_array[x] = sum(input_array[low_index : high_index+1]) / ((high_index+1) - low_index)
         
 def main(argv):
-    global noise
-    global noise_filtered
     global args
     input_type = 'int16'
-    #output_type = 'float32'
     output_type = 'int16'
     smoothing_factor = 100
-   
+    report_freqs = [20, 1000, 20000]
+
     #Parse arguments
     parser = argparse.ArgumentParser()
     
@@ -99,16 +97,16 @@ def main(argv):
         except ModuleNotFoundError:
             lg.error("Matplotlib is required for plotting")
             args.plots = 0
+    
+    if args.list_devices == True:
+        print(sd.query_devices())
+        sys.exit()
             
     if args.input == -1 or args.output == -1:
         lg.error("Channel error, exiting")
         print("  You must specify channels for input and output, see usage:\n")
         parser.print_help()
         sys.exit(2)
-    
-    if args.list_devices == True:
-        print(sd.query_devices())
-        sys.exit()
             
     if args.rate == -1:
         args.rate = int(sd.query_devices(args.input)['default_samplerate'])
@@ -204,25 +202,6 @@ def main(argv):
     except sd.PortAudioError as e:
         lg.error("Output format not supported, exiting: %s", str(e))
         sys.exit(2)
-                    
-    #Open the streams
- 
-    #stream_in = sd.InputStream(
-    #    device = args.input,
-    #    samplerate = args.rate, 
-    #    channels = args.channels,
-    #    dtype = input_type,
-    #    blocksize = frames)
-
-    #stream_out = sd.OutputStream(
-    #    device = args.output,
-    #    samplerate = args.rate, 
-    #    channels = args.channels,
-    #    dtype = output_type,
-    #   blocksize = frames,
-    #    callback = callback)
-    
-    #record_data = np.empty([frames, args.channels], dtype='int16')
         
     try:
         lg.info("Starting output stream")
@@ -244,7 +223,8 @@ def main(argv):
         counter = float(args.time);
         while stream.active:
             print("Time left: %1.1f" %counter, end='\r')
-            if counter > 0: counter -= 0.1
+            if(counter > 0): 
+                counter -= 0.1
             time.sleep(0.1)
     except KeyboardInterrupt:
         sys.exit(2)
@@ -316,20 +296,24 @@ def main(argv):
         plt.show()
         
     ##Print data table
-    table_data = [ ['20Hz', str(fft_smooth[20,0]) + 'dB'],
-                  ['1kHz', str(fft_smooth[1000,0]) + 'dB'],
-                  ['20kHz', str(fft_smooth[20000,0]) + 'dB'] ]
-    print(tabulate(table_data, headers=("Freq", "Channel 0")))
+    table_data = []
     
-    #for x in np.argsort(fft_mag)[::-1][:10]:
-    #    print(x, fft_mag[x])
+    table_headers = ['Frequency']
+    for channel in range(args.channels):
+        table_headers.append("Ch " + str(channel))
     
-    #for x in args.report:
-    #    if x.upper() == 'MAX':
-    #        max_x = np.argmax(fft_mags_mean)
-    #        print(max_x, fft_mags_mean[max_x])
-    #    else:
-    #        print(int(x), fft_scaled[int(x)])
+    table_rows = [table_headers]
+    for freq in report_freqs:
+        table_row = [str(freq)]
+        for channel in range(args.channels):
+#            print(fft_smooth[int(freq)])
+            table_row.append(fft_smooth[int(freq), int(channel)])
+        table_rows.append(table_row)
+    
+    print(tabulate(table_rows, headers='firstrow', tablefmt='presto'))
+    
+    max_x = np.argmax(fft_smooth[:,0])
+#    print(max_x, fft_smooth[max_x,0])
     
     sys.exit()
     
